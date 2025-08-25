@@ -1,69 +1,30 @@
-# React + TypeScript + Vite
+# Projet Atelier 1 – Plateforme d’intermédiation
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+## 🚀 Objectif
 
-Currently, two official plugins are available:
+Développer une application web de type plateforme d’intermédiation.  
+Exemple : mise en relation entre particuliers pour partager/prêter des biens ou services.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## 🛠️ Stack technique
 
-## Expanding the ESLint configuration
+- **Front-end** : React (Create React App ou Vite)
+- **Back-end (API)** : Express.js (Node.js)
+- **Base de données** : SQLite (accessible via DBeaver)
+- **ORM** : Sequelize (pour simplifier les requêtes SQL)
+- **Gestion de version** : Git + GitHub
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## 📂 Fonctionnalités prévues
 
-```js
-export default tseslint.config([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+1. Inscription / Connexion utilisateur
+2. Catalogue des offres (services/produits disponibles)
+3. Ajout d’une nouvelle offre
+4. Réservation / Obtention d’une offre
 
-      // Remove tseslint.configs.recommended and replace with this
-      ...tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      ...tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      ...tseslint.configs.stylisticTypeChecked,
+## ⚙️ Installation & lancement
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+### 1. Cloner le projet
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default tseslint.config([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+git clone https://github.com/<ton-repo>/atelier1-intermediation.git
+cd atelier1-intermediation
 ```
