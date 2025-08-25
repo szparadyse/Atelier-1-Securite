@@ -1,6 +1,7 @@
 import axios from "axios";
 import { useEffect, useState } from "react";
 import type { Offer } from "../interface/Liste";
+import { Button } from "@/components/ui/button";
 
 function Liste() {
   const [offers, setOffers] = useState<Offer[]>([]);
@@ -29,6 +30,7 @@ function Liste() {
       <h1 className="text-3xl font-bold underline">
         Hello world!
       </h1>
+      <Button>Click </Button>
       <h1>Liste des Offres</h1>
       {offers.length === 0 ? (
         <p>Aucune offre disponible.</p>
