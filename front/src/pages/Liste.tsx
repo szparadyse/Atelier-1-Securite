@@ -1,7 +1,16 @@
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import axios from "axios";
 import { useEffect, useState } from "react";
 import type { Offer } from "../interface/Liste";
-import { Button } from "@/components/ui/button";
 
 function Liste() {
   const [offers, setOffers] = useState<Offer[]>([]);
@@ -22,27 +31,55 @@ function Liste() {
   }, []);
 
   if (loading) {
-    return <p>Chargement des offres...</p>;
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-4 text-muted-foreground">Chargement des offres...</p>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div>
-      <h1 className="text-3xl font-bold underline">
-        Hello world!
-      </h1>
-      <Button>Click </Button>
-      <h1>Liste des Offres</h1>
-      {offers.length === 0 ? (
-        <p>Aucune offre disponible.</p>
-      ) : (
-        <ul>
-          {offers.map((o) => (
-            <li key={o.id}>
-              <strong>{o.title}</strong> - {o.description} ({o.price}€)
-            </li>
-          ))}
-        </ul>
-      )}
+    <div className="container mx-auto py-8 px-4">
+      <div className="flex flex-col gap-6">
+        <div className="flex justify-between items-center">
+          <h1 className="text-3xl font-bold tracking-tight">Liste des Offres</h1>
+          <Button>Ajouter une offre</Button>
+        </div>
+
+        {offers.length === 0 ? (
+          <Card className="w-full">
+            <CardContent className="pt-6 text-center">
+              <p className="text-muted-foreground">Aucune offre disponible pour le moment.</p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {offers.map((offer) => (
+              <Card key={offer.id} className="overflow-hidden">
+                <CardHeader>
+                  <CardTitle>{offer.title}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <CardDescription className="text-sm">
+                    {offer.description}
+                  </CardDescription>
+                </CardContent>
+                <CardFooter className="flex justify-between items-center bg-muted/50 pt-2">
+                  <Badge variant="secondary" className="font-medium">
+                    {offer.price}€
+                  </Badge>
+                  <Button variant="outline" size="sm">
+                    Voir détails
+                  </Button>
+                </CardFooter>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
