@@ -26,6 +26,9 @@ function Liste() {
 
   return (
     <div>
+      <h1 className="text-3xl font-bold underline">
+        Hello world!
+      </h1>
       <h1>Liste des Offres</h1>
       {offers.length === 0 ? (
         <p>Aucune offre disponible.</p>
