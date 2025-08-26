@@ -4,4 +4,6 @@ export interface Offer {
   title: string;
   description: string;
   price: number;
+  created_by?: number; // ID de l'utilisateur qui a créé l'offre
+  created_at?: string; // Date de création
 }
