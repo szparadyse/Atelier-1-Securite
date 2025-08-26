@@ -469,6 +469,25 @@ app.get("/api/profile", auth, (req, res) => {
   );
 });
 
+// Route pour récupérer les offres créées par l'utilisateur connecté
+app.get("/api/my-offers", auth, (req, res) => {
+  logger.info(`Récupération des offres pour l'utilisateur: ${req.user.username} (ID: ${req.user.userId})`);
+  
+  db.all(
+    "SELECT * FROM offers WHERE created_by = ?",
+    [req.user.userId],
+    (err, offers) => {
+      if (err) {
+        logger.error(`Erreur lors de la récupération des offres de l'utilisateur: ${err.message}`);
+        return res.status(500).json({ error: "Erreur serveur" });
+      }
+      
+      logger.info(`${offers.length} offre(s) récupérée(s) pour l'utilisateur ${req.user.username}`);
+      res.json(offers);
+    }
+  );
+});
+
 // Route protégée - nécessite des privilèges administrateur
 app.get("/api/users", auth, isAdmin, (req, res) => {
   logger.info(`Accès à la liste des utilisateurs par l'admin: ${req.user.username}`);

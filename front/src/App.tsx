@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, Navigate, Route, BrowserRouter as Router, Routes } from "react-router-dom";
 import Connexion from "./pages/Connexion";
 import Liste from "./pages/Liste";
+import MesOffres from "./pages/MesOffres";
 
 function App() {
   // Vérifier si l'utilisateur est authentifié en vérifiant le localStorage
@@ -43,6 +44,9 @@ function App() {
           <div className="flex gap-4">
             <Link to="/" className="hover:underline">Accueil</Link>
             <Link to="/liste" className="hover:underline">Liste des offres</Link>
+            {isAuthenticated && (
+              <Link to="/mes-offres" className="hover:underline">Mes offres</Link>
+            )}
           </div>
           <div>
             {isAuthenticated ? (
@@ -86,6 +90,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <Liste />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/mes-offres" 
+            element={
+              <ProtectedRoute>
+                <MesOffres />
               </ProtectedRoute>
             } 
           />
