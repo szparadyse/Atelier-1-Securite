@@ -8,6 +8,9 @@ const jwt = require("jsonwebtoken"); // import du module JWT
 const app = express();
 const PORT = 3000;
 
+// Système de limitation des tentatives de connexion
+const loginAttempts = {}; // { username: { count: number, lastAttempt: timestamp, blockedUntil: timestamp } }
+
 // Clé secrète pour les JWT (à stocker dans une variable d'environnement en production)
 const JWT_SECRET = "votre_cle_secrete_tres_complexe_a_changer_en_production";
 
@@ -348,6 +351,25 @@ app.post("/api/login", (req, res) => {
     return res.status(400).json({ error: "Le nom d'utilisateur et le mot de passe sont obligatoires" });
   }
   
+  // Vérification des tentatives de connexion
+  const now = Date.now();
+  if (loginAttempts[username]) {
+    // Vérifier si l'utilisateur est bloqué
+    if (loginAttempts[username].blockedUntil && loginAttempts[username].blockedUntil > now) {
+      const remainingTimeMs = loginAttempts[username].blockedUntil - now;
+      const remainingTimeSec = Math.ceil(remainingTimeMs / 1000);
+      logger.warn(`Tentative de connexion bloquée pour l'utilisateur ${username} (encore ${remainingTimeSec} secondes)`);
+      return res.status(429).json({ 
+        error: "Trop de tentatives échouées", 
+        blockedUntil: loginAttempts[username].blockedUntil,
+        remainingTime: remainingTimeSec
+      });
+    }
+  } else {
+    // Initialiser les tentatives pour cet utilisateur
+    loginAttempts[username] = { count: 0, lastAttempt: now };
+  }
+  
   // Hashage du mot de passe pour la comparaison
   const hashedPassword = crypto.SHA256(password).toString();
   
@@ -362,8 +384,37 @@ app.post("/api/login", (req, res) => {
       }
       
       if (!user) {
-        logger.warn(`Tentative de connexion échouée: identifiants incorrects pour ${username}`);
-        return res.status(401).json({ error: "Identifiants incorrects" });
+        // Incrémenter le compteur de tentatives échouées
+        loginAttempts[username].count += 1;
+        loginAttempts[username].lastAttempt = now;
+        
+        // Vérifier si l'utilisateur doit être bloqué (5 tentatives échouées)
+        if (loginAttempts[username].count >= 5) {
+          // Bloquer pour 1 minute (60000 ms)
+          const blockUntil = now + 60000;
+          loginAttempts[username].blockedUntil = blockUntil;
+          
+          // Log critique pour signaler le blocage
+          logger.critical(`SÉCURITÉ: Compte ${username} bloqué après ${loginAttempts[username].count} tentatives de connexion échouées`);
+          
+          return res.status(429).json({ 
+            error: "Trop de tentatives échouées. Compte temporairement bloqué pendant 1 minute.", 
+            blockedUntil: blockUntil,
+            remainingTime: 60
+          });
+        }
+        
+        logger.warn(`Tentative de connexion échouée: identifiants incorrects pour ${username} (tentative ${loginAttempts[username].count}/5)`);
+        return res.status(401).json({ 
+          error: "Identifiants incorrects", 
+          attemptsLeft: 5 - loginAttempts[username].count 
+        });
+      }
+      
+      // Connexion réussie - réinitialiser le compteur de tentatives
+      if (loginAttempts[username]) {
+        loginAttempts[username].count = 0;
+        loginAttempts[username].blockedUntil = null;
       }
       
       // Création du token JWT

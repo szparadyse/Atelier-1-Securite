@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/card";
 import axios from "axios";
 import { AlertCircleIcon } from "lucide-react";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 interface LoginResponse {
@@ -23,12 +23,46 @@ interface LoginResponse {
   };
 }
 
+interface LoginError {
+  error: string;
+  blockedUntil?: number;
+  remainingTime?: number;
+  attemptsLeft?: number;
+}
+
 const Connexion: React.FC = () => {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [, setBlockedUntil] = useState<number | null>(null); // On garde setBlockedUntil pour la logique mais on n'utilise pas blockedUntil
+  const [remainingTime, setRemainingTime] = useState<number | null>(null);
+  const [attemptsLeft, setAttemptsLeft] = useState<number | null>(null);
   const navigate = useNavigate();
+
+  // Effet pour gérer le compte à rebours
+  useEffect(() => {
+    let timer: number | undefined;
+    
+    if (remainingTime && remainingTime > 0) {
+      timer = window.setInterval(() => {
+        setRemainingTime(prev => {
+          if (prev && prev > 1) {
+            return prev - 1;
+          } else {
+            // Temps écoulé, on réinitialise
+            setBlockedUntil(null);
+            setError(null);
+            return null;
+          }
+        });
+      }, 1000);
+    }
+    
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [remainingTime]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -58,7 +92,21 @@ const Connexion: React.FC = () => {
     } catch (err) {
       setLoading(false);
       if (axios.isAxiosError(err) && err.response) {
-        setError(err.response.data.error || "Identifiants incorrects");
+        const errorData = err.response.data as LoginError;
+        setError(errorData.error || "Identifiants incorrects");
+        
+        // Gestion des tentatives restantes
+        if (errorData.attemptsLeft !== undefined) {
+          setAttemptsLeft(errorData.attemptsLeft);
+        }
+        
+        // Gestion du blocage temporaire
+        if (errorData.blockedUntil) {
+          setBlockedUntil(errorData.blockedUntil);
+          if (errorData.remainingTime) {
+            setRemainingTime(errorData.remainingTime);
+          }
+        }
       } else {
         setError("Erreur de connexion au serveur");
       }
@@ -81,6 +129,16 @@ const Connexion: React.FC = () => {
               <AlertTitle>Erreur de connexion</AlertTitle>
               <AlertDescription>
                 {error}
+                {remainingTime && remainingTime > 0 && (
+                  <div className="mt-2 font-semibold">
+                    Veuillez attendre {remainingTime} secondes avant de réessayer.
+                  </div>
+                )}
+                {attemptsLeft !== null && attemptsLeft > 0 && !remainingTime && (
+                  <div className="mt-2">
+                    Il vous reste {attemptsLeft} tentative{attemptsLeft > 1 ? 's' : ''} avant le blocage temporaire.
+                  </div>
+                )}
               </AlertDescription>
             </Alert>
           )}
@@ -119,8 +177,14 @@ const Connexion: React.FC = () => {
               </div>
             </div>
             <CardFooter className="flex-col gap-2 px-0 pt-6">
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? "Connexion en cours..." : "Se connecter"}
+              <Button 
+                type="submit" 
+                className="w-full" 
+                disabled={loading || (remainingTime !== null && remainingTime > 0)}
+              >
+                {loading ? "Connexion en cours..." : 
+                 (remainingTime !== null && remainingTime > 0) ? 
+                 `Réessayer dans ${remainingTime}s` : "Se connecter"}
               </Button>
             </CardFooter>
           </form>
