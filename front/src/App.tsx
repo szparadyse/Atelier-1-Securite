@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, Navigate, Route, BrowserRouter as Router, Routes } from "react-router-dom";
 import Connexion from "./pages/Connexion";
+import Inscription from "./pages/Inscription";
 import Liste from "./pages/Liste";
 import MesOffres from "./pages/MesOffres";
 
@@ -75,6 +76,9 @@ function App() {
         <Routes>
           <Route path="/connexion" element={
             isAuthenticated ? <Navigate to="/liste" /> : <Connexion />
+          } />
+          <Route path="/inscription" element={
+            isAuthenticated ? <Navigate to="/liste" /> : <Inscription />
           } />
           <Route 
             path="/" 

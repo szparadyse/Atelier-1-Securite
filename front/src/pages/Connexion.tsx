@@ -11,7 +11,7 @@ import {
 import axios from "axios";
 import { AlertCircleIcon } from "lucide-react";
 import React, { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 interface LoginResponse {
   message: string;
@@ -187,6 +187,11 @@ const Connexion: React.FC = () => {
                  `Réessayer dans ${remainingTime}s` : "Se connecter"}
               </Button>
             </CardFooter>
+            <div className="text-center mt-4">
+              <p className="text-sm">
+                Pas encore de compte ? <Link to="/inscription" className="text-primary hover:underline">S'inscrire</Link>
+              </p>
+            </div>
           </form>
         </CardContent>
       </Card>

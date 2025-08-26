@@ -4,6 +4,10 @@ const cors = require("cors");
 const logger = require("./logger"); // import du module de log
 const crypto = require("crypto-js"); // import du module de cryptage
 const jwt = require("jsonwebtoken"); // import du module JWT
+const helmet = require("helmet"); // import du module helmet pour sécuriser les en-têtes HTTP
+const { body, validationResult } = require("express-validator"); // import du module express-validator
+const cookieParser = require("cookie-parser"); // import du module cookie-parser
+const csrf = require("csurf"); // import du module csurf
 
 const app = express();
 const PORT = 3000;
@@ -14,9 +18,24 @@ const loginAttempts = {}; // { username: { count: number, lastAttempt: timestamp
 // Clé secrète pour les JWT (à stocker dans une variable d'environnement en production)
 const JWT_SECRET = "votre_cle_secrete_tres_complexe_a_changer_en_production";
 
+// Configuration du CSRF
+const csrfProtection = csrf({ 
+  cookie: {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production", // true en production
+    sameSite: "strict"
+  }
+});
+
 // Middleware
-app.use(cors());
-app.use(express.json());
+app.use(cors({
+  origin: "http://localhost:5173", // Autoriser uniquement l'origine du frontend
+  credentials: true // Permettre l'envoi de cookies
+}));
+app.use(express.json({ limit: "1mb" })); // Limiter la taille des requêtes JSON
+app.use(express.urlencoded({ extended: true, limit: "1mb" })); // Pour parser les données des formulaires
+app.use(cookieParser()); // Pour parser les cookies
+app.use(helmet()); // Ajouter des en-têtes de sécurité
 
 // Middleware d'authentification
 const auth = (req, res, next) => {
@@ -338,6 +357,153 @@ app.post("/api/offers", (req, res) => {
       }
     }
   );
+});
+
+// Fonction pour valider la complexité du mot de passe
+const validatePassword = (password) => {
+  const errors = [];
+  
+  if (password.length < 8) {
+    errors.push("Le mot de passe doit contenir au moins 8 caractères");
+  }
+  if (!/[A-Z]/.test(password)) {
+    errors.push("Le mot de passe doit contenir au moins une lettre majuscule");
+  }
+  if (!/[a-z]/.test(password)) {
+    errors.push("Le mot de passe doit contenir au moins une lettre minuscule");
+  }
+  if (!/[0-9]/.test(password)) {
+    errors.push("Le mot de passe doit contenir au moins un chiffre");
+  }
+  if (!/[^A-Za-z0-9]/.test(password)) {
+    errors.push("Le mot de passe doit contenir au moins un caractère spécial");
+  }
+  
+  return errors;
+};
+
+// Route pour obtenir un token CSRF
+app.get("/api/csrf-token", csrfProtection, (req, res) => {
+  res.json({ csrfToken: req.csrfToken() });
+});
+
+// Route pour l'inscription utilisateur avec validation et protection CSRF
+app.post("/api/register", [
+  // Validation des entrées avec express-validator
+  body("username")
+    .trim()
+    .isLength({ min: 3, max: 30 }).withMessage("Le nom d'utilisateur doit contenir entre 3 et 30 caractères")
+    .matches(/^[a-zA-Z0-9_]+$/).withMessage("Le nom d'utilisateur ne peut contenir que des lettres, des chiffres et des underscores")
+    .escape(), // Protection contre les XSS
+  body("email")
+    .trim()
+    .isEmail().withMessage("Format d'email invalide")
+    .normalizeEmail(), // Normaliser l'email
+  body("password")
+    .isLength({ min: 8 }).withMessage("Le mot de passe doit contenir au moins 8 caractères")
+    .matches(/[A-Z]/).withMessage("Le mot de passe doit contenir au moins une lettre majuscule")
+    .matches(/[a-z]/).withMessage("Le mot de passe doit contenir au moins une lettre minuscule")
+    .matches(/[0-9]/).withMessage("Le mot de passe doit contenir au moins un chiffre")
+    .matches(/[^A-Za-z0-9]/).withMessage("Le mot de passe doit contenir au moins un caractère spécial"),
+  body("confirmPassword")
+    .custom((value, { req }) => {
+      if (value !== req.body.password) {
+        throw new Error("Les mots de passe ne correspondent pas");
+      }
+      return true;
+    })
+], (req, res) => {
+  // Vérification des erreurs de validation
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    // Extraction des messages d'erreur
+    const errorMessages = errors.array();
+    const passwordErrors = errorMessages
+      .filter(err => ["password", "confirmPassword"].includes(err.path))
+      .map(err => err.msg);
+    
+    // Erreur principale (premier message ou message générique)
+    const mainError = errorMessages.length > 0 ? 
+      errorMessages[0].msg : 
+      "Données d'inscription invalides";
+    
+    logger.warn(`Tentative d'inscription échouée: validation échouée pour ${req.body.username || 'utilisateur inconnu'}`);
+    return res.status(400).json({ 
+      error: mainError, 
+      passwordErrors: passwordErrors.length > 0 ? passwordErrors : undefined 
+    });
+  }
+  
+  const { username, email, password } = req.body;
+  logger.info(`Tentative d'inscription pour l'utilisateur: ${username}`);
+  
+  // Hashage du mot de passe avec une méthode plus sécurisée
+  const hashedPassword = crypto.SHA256(password).toString();
+  
+  // Vérification que l'username et l'email n'existent pas déjà avec des requêtes paramétrées
+  db.get("SELECT id FROM users WHERE username = ? OR email = ?", [username, email], (err, user) => {
+    if (err) {
+      logger.error(`Erreur lors de la vérification des identifiants: ${err.message}`);
+      return res.status(500).json({ error: "Erreur serveur lors de l'inscription" });
+    }
+    
+    if (user) {
+      // Vérification plus précise pour donner un message d'erreur plus spécifique
+      db.get("SELECT id FROM users WHERE username = ?", [username], (err, usernameExists) => {
+        if (err) {
+          logger.error(`Erreur lors de la vérification du nom d'utilisateur: ${err.message}`);
+          return res.status(500).json({ error: "Erreur serveur lors de l'inscription" });
+        }
+        
+        if (usernameExists) {
+          logger.warn(`Tentative d'inscription échouée: nom d'utilisateur ${username} déjà utilisé`);
+          return res.status(400).json({ error: "Ce nom d'utilisateur est déjà utilisé" });
+        } else {
+          logger.warn(`Tentative d'inscription échouée: email ${email} déjà utilisé`);
+          return res.status(400).json({ error: "Cet email est déjà utilisé" });
+        }
+      });
+      return;
+    }
+    
+    // Utilisation de requêtes paramétrées pour éviter les injections SQL
+    db.run(
+      "INSERT INTO users (username, email, password, role) VALUES (?, ?, ?, ?)",
+      [username, email, hashedPassword, 'standard'],
+      function(err) {
+        if (err) {
+          logger.error(`Erreur lors de l'inscription: ${err.message}`);
+          return res.status(500).json({ error: "Erreur serveur lors de l'inscription" });
+        }
+        
+        const userId = this.lastID;
+        
+        // Création du token JWT pour connecter directement l'utilisateur
+        const token = jwt.sign(
+          { 
+            userId: userId, 
+            username: username, 
+            role: 'standard' 
+          },
+          JWT_SECRET,
+          { expiresIn: '24h' } // Token valide pendant 24h
+        );
+        
+        logger.info(`Inscription réussie pour l'utilisateur: ${username} (ID: ${userId})`);
+        
+        // Retourner le token et les informations de l'utilisateur
+        res.status(201).json({
+          message: "Inscription réussie",
+          token,
+          user: {
+            id: userId,
+            username: username,
+            role: 'standard'
+          }
+        });
+      }
+    );
+  });
 });
 
 // Route pour la connexion utilisateur
