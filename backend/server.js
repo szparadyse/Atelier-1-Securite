@@ -3,13 +3,65 @@ const sqlite3 = require("sqlite3").verbose();
 const cors = require("cors");
 const logger = require("./logger"); // import du module de log
 const crypto = require("crypto-js"); // import du module de cryptage
+const jwt = require("jsonwebtoken"); // import du module JWT
 
 const app = express();
 const PORT = 3000;
 
+// Clé secrète pour les JWT (à stocker dans une variable d'environnement en production)
+const JWT_SECRET = "votre_cle_secrete_tres_complexe_a_changer_en_production";
+
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+// Middleware d'authentification
+const auth = (req, res, next) => {
+  try {
+    // Récupérer le token du header Authorization
+    const authHeader = req.headers.authorization;
+    
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      logger.warn(`Tentative d'accès à une route protégée sans token valide`);
+      return res.status(401).json({ error: "Authentification requise" });
+    }
+    
+    const token = authHeader.split(' ')[1];
+    
+    // Vérifier le token
+    const decodedToken = jwt.verify(token, JWT_SECRET);
+    
+    // Ajouter les informations utilisateur à l'objet requête
+    req.user = {
+      userId: decodedToken.userId,
+      username: decodedToken.username,
+      role: decodedToken.role
+    };
+    
+    logger.debug(`Utilisateur authentifié: ${req.user.username} (ID: ${req.user.userId}, Rôle: ${req.user.role})`);
+    next();
+  } catch (error) {
+    logger.error(`Erreur d'authentification: ${error.message}`);
+    res.status(401).json({ error: "Token invalide ou expiré" });
+  }
+};
+
+// Middleware pour vérifier le rôle admin
+const isAdmin = (req, res, next) => {
+  // Ce middleware doit être utilisé après le middleware auth
+  if (!req.user) {
+    logger.error("Middleware isAdmin utilisé sans middleware auth préalable");
+    return res.status(500).json({ error: "Erreur de configuration serveur" });
+  }
+  
+  if (req.user.role !== 'admin') {
+    logger.warn(`Tentative d'accès à une route admin par un utilisateur non-admin: ${req.user.username}`);
+    return res.status(403).json({ error: "Accès refusé. Privilèges administrateur requis." });
+  }
+  
+  logger.debug(`Accès admin autorisé pour: ${req.user.username}`);
+  next();
+};
 
 // Connexion à SQLite
 const db = new sqlite3.Database("./database.db", (err) => {
@@ -283,6 +335,102 @@ app.post("/api/offers", (req, res) => {
       }
     }
   );
+});
+
+// Route pour la connexion utilisateur
+app.post("/api/login", (req, res) => {
+  const { username, password } = req.body;
+  logger.info(`Tentative de connexion pour l'utilisateur: ${username}`);
+  
+  // Validation des données
+  if (!username || !password) {
+    logger.warn(`Tentative de connexion échouée: identifiants incomplets pour ${username || 'utilisateur inconnu'}`);
+    return res.status(400).json({ error: "Le nom d'utilisateur et le mot de passe sont obligatoires" });
+  }
+  
+  // Hashage du mot de passe pour la comparaison
+  const hashedPassword = crypto.SHA256(password).toString();
+  
+  // Recherche de l'utilisateur dans la base de données
+  db.get(
+    "SELECT id, username, role FROM users WHERE username = ? AND password = ?",
+    [username, hashedPassword],
+    (err, user) => {
+      if (err) {
+        logger.error(`Erreur lors de la vérification des identifiants: ${err.message}`);
+        return res.status(500).json({ error: "Erreur serveur lors de la connexion" });
+      }
+      
+      if (!user) {
+        logger.warn(`Tentative de connexion échouée: identifiants incorrects pour ${username}`);
+        return res.status(401).json({ error: "Identifiants incorrects" });
+      }
+      
+      // Création du token JWT
+      const token = jwt.sign(
+        { 
+          userId: user.id, 
+          username: user.username, 
+          role: user.role 
+        },
+        JWT_SECRET,
+        { expiresIn: '24h' } // Token valide pendant 24h
+      );
+      
+      logger.info(`Connexion réussie pour l'utilisateur: ${username} (ID: ${user.id}, Rôle: ${user.role})`);
+      
+      // Retourner le token et les informations de l'utilisateur
+      res.json({
+        message: "Connexion réussie",
+        token,
+        user: {
+          id: user.id,
+          username: user.username,
+          role: user.role
+        }
+      });
+    }
+  );
+});
+
+// Route protégée - nécessite une authentification
+app.get("/api/profile", auth, (req, res) => {
+  logger.info(`Accès au profil pour l'utilisateur: ${req.user.username}`);
+  
+  // Récupérer les informations complètes de l'utilisateur depuis la base de données
+  db.get(
+    "SELECT id, username, email, role, created_at FROM users WHERE id = ?",
+    [req.user.userId],
+    (err, user) => {
+      if (err) {
+        logger.error(`Erreur lors de la récupération du profil: ${err.message}`);
+        return res.status(500).json({ error: "Erreur serveur" });
+      }
+      
+      if (!user) {
+        logger.error(`Utilisateur introuvable pour l'ID: ${req.user.userId}`);
+        return res.status(404).json({ error: "Utilisateur introuvable" });
+      }
+      
+      // Retourner les informations de l'utilisateur (sans le mot de passe)
+      res.json(user);
+    }
+  );
+});
+
+// Route protégée - nécessite des privilèges administrateur
+app.get("/api/users", auth, isAdmin, (req, res) => {
+  logger.info(`Accès à la liste des utilisateurs par l'admin: ${req.user.username}`);
+  
+  db.all("SELECT id, username, email, role, created_at FROM users", [], (err, users) => {
+    if (err) {
+      logger.error(`Erreur lors de la récupération des utilisateurs: ${err.message}`);
+      return res.status(500).json({ error: "Erreur serveur" });
+    }
+    
+    logger.info(`${users.length} utilisateurs récupérés par l'admin ${req.user.username}`);
+    res.json(users);
+  });
 });
 
 // Middleware pour gérer les erreurs 404 (routes non trouvées)

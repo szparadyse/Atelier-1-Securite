@@ -1,3 +1,4 @@
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -9,24 +10,42 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import axios from "axios";
+import { AlertCircleIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { Offer } from "../interface/Liste";
 
 function Liste() {
   const [offers, setOffers] = useState<Offer[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Charger les offres depuis le backend
   useEffect(() => {
+    // Récupérer le token JWT du localStorage
+    const token = localStorage.getItem("token");
+    
+    // Configurer les headers avec le token JWT
+    const config = {
+      headers: {
+        Authorization: token ? `Bearer ${token}` : ""
+      }
+    };
+
+    // Faire la requête avec le token
     axios
-      .get("http://localhost:3000/api/offers")
+      .get("http://localhost:3000/api/offers", config)
       .then((res) => {
         setOffers(res.data);
         setLoading(false);
       })
       .catch((err) => {
-        console.error("Erreur lors du fetch des offres:", err);
         setLoading(false);
+        if (axios.isAxiosError(err) && err.response) {
+          setError(err.response.data.error || "Erreur lors du chargement des offres");
+        } else {
+          setError("Erreur de connexion au serveur");
+        }
+        console.error("Erreur lors du fetch des offres:", err);
       });
   }, []);
 
@@ -49,7 +68,17 @@ function Liste() {
           <Button>Ajouter une offre</Button>
         </div>
 
-        {offers.length === 0 ? (
+        {error && (
+          <Alert variant="destructive">
+            <AlertCircleIcon className="h-4 w-4" />
+            <AlertTitle>Erreur</AlertTitle>
+            <AlertDescription>
+              {error}
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {!error && offers.length === 0 ? (
           <Card className="w-full">
             <CardContent className="pt-6 text-center">
               <p className="text-muted-foreground">Aucune offre disponible pour le moment.</p>
