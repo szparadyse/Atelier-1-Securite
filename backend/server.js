@@ -327,34 +327,56 @@ app.get("/api/offers", (req, res) => {
   });
 });
 
-// Exemple de route POST
-app.post("/api/offers", (req, res) => {
-  const { title, description, price, created_by } = req.body;
-  logger.debug(`Requête POST /api/offers avec données: ${JSON.stringify(req.body)}`);
-  
-  // Validation des données
-  if (!title || !price) {
-    return res.status(400).json({ error: "Le titre et le prix sont obligatoires" });
+// Route sécurisée pour créer une offre (authentification requise)
+app.post("/api/offers", auth, [
+  // Validation des entrées avec express-validator
+  body("title")
+    .trim()
+    .isLength({ min: 3, max: 100 }).withMessage("Le titre doit contenir entre 3 et 100 caractères")
+    .escape(), // Protection contre les XSS
+  body("description")
+    .trim()
+    .isLength({ min: 10, max: 1000 }).withMessage("La description doit contenir entre 10 et 1000 caractères")
+    .escape(), // Protection contre les XSS
+  body("price")
+    .isFloat({ min: 0, max: 1000000 }).withMessage("Le prix doit être un nombre positif inférieur à 1 000 000")
+], (req, res) => {
+  // Vérification des erreurs de validation
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    const errorMessages = errors.array().map(err => err.msg);
+    logger.warn(`Validation échouée pour la création d'offre par ${req.user.username}: ${errorMessages.join(', ')}`);
+    return res.status(400).json({ 
+      error: "Données invalides", 
+      details: errorMessages 
+    });
   }
+
+  const { title, description, price } = req.body;
+  logger.info(`Création d'une offre par l'utilisateur ${req.user.username} (ID: ${req.user.userId})`);
   
+  // Utilisation de requêtes paramétrées pour éviter les injections SQL
   db.run(
     "INSERT INTO offers (title, description, price, created_by) VALUES (?, ?, ?, ?)",
-    [title, description, price, created_by || null],
+    [title, description, price, req.user.userId],
     function (err) {
       if (err) {
-        logger.error(`Erreur INSERT offer: ${err.message}`);
-        res.status(500).json({ error: err.message });
-      } else {
-        logger.info(`Nouvelle offre ajoutée avec ID=${this.lastID}`);
-        res.json({ 
-          id: this.lastID, 
-          title, 
-          description, 
-          price,
-          created_by: created_by || null,
-          created_at: new Date().toISOString()
-        });
+        logger.error(`Erreur lors de la création d'offre: ${err.message}`);
+        return res.status(500).json({ error: "Erreur serveur lors de la création de l'offre" });
       }
+      
+      const offerId = this.lastID;
+      logger.info(`Nouvelle offre créée avec succès: ID=${offerId}, par utilisateur ${req.user.username}`);
+      
+      // Retourner les détails de l'offre créée
+      res.status(201).json({ 
+        id: offerId, 
+        title, 
+        description, 
+        price,
+        created_by: req.user.userId,
+        created_at: new Date().toISOString()
+      });
     }
   );
 });
