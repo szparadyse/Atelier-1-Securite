@@ -3,6 +3,7 @@ import { Link, Navigate, Route, BrowserRouter as Router, Routes } from "react-ro
 import Connexion from "./pages/Connexion";
 import Inscription from "./pages/Inscription";
 import Liste from "./pages/Liste";
+import MesAchats from "./pages/MesAchats";
 import MesOffres from "./pages/MesOffres";
 
 function App() {
@@ -46,7 +47,10 @@ function App() {
             <Link to="/" className="hover:underline">Accueil</Link>
             <Link to="/liste" className="hover:underline">Liste des offres</Link>
             {isAuthenticated && (
-              <Link to="/mes-offres" className="hover:underline">Mes offres</Link>
+              <>
+                <Link to="/mes-offres" className="hover:underline">Mes offres</Link>
+                <Link to="/mes-achats" className="hover:underline">Mes achats</Link>
+              </>
             )}
           </div>
           <div>
@@ -102,6 +106,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <MesOffres />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/mes-achats" 
+            element={
+              <ProtectedRoute>
+                <MesAchats />
               </ProtectedRoute>
             } 
           />

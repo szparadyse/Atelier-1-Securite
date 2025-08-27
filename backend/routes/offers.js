@@ -81,6 +81,25 @@ router.get("/my-offers", auth, (req, res) => {
   );
 });
 
+// Route pour récupérer les offres achetées par l'utilisateur connecté
+router.get("/my-purchases", auth, (req, res) => {
+  logger.info(`Récupération des achats pour l'utilisateur: ${req.user.username} (ID: ${req.user.userId})`);
+  
+  db.all(
+    "SELECT * FROM offers WHERE buyer_id = ?",
+    [req.user.userId],
+    (err, purchases) => {
+      if (err) {
+        logger.error(`Erreur lors de la récupération des achats de l'utilisateur: ${err.message}`);
+        return res.status(500).json({ error: "Erreur serveur" });
+      }
+      
+      logger.info(`${purchases.length} achat(s) récupéré(s) pour l'utilisateur ${req.user.username}`);
+      res.json(purchases);
+    }
+  );
+});
+
 // Route pour récupérer une offre spécifique par son ID
 router.get("/:id", (req, res) => {
   const offerId = req.params.id;
