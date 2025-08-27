@@ -6,4 +6,6 @@ export interface Offer {
   price: number;
   created_by?: number; // ID de l'utilisateur qui a créé l'offre
   created_at?: string; // Date de création
+  buyer_id?: number | null; // ID de l'acheteur (null si pas encore vendu)
+  status?: string; // 'disponible' ou 'vendu'
 }

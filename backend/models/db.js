@@ -124,8 +124,11 @@ const createOffersTable = () => {
         description TEXT,
         price REAL NOT NULL,
         created_by INTEGER,
+        buyer_id INTEGER DEFAULT NULL,
+        status TEXT CHECK(status IN ('disponible', 'vendu')) NOT NULL DEFAULT 'disponible',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (created_by) REFERENCES users(id)
+        FOREIGN KEY (created_by) REFERENCES users(id),
+        FOREIGN KEY (buyer_id) REFERENCES users(id)
       )
     `, (err) => {
       if (err) {

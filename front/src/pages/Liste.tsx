@@ -22,7 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import axios from "axios";
-import { AlertCircleIcon } from "lucide-react";
+import { AlertCircleIcon, CheckCircle, ShoppingCart } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { Offer } from "../interface/Liste";
 
@@ -38,6 +38,8 @@ function Liste() {
   const [formErrors, setFormErrors] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isPurchasing, setIsPurchasing] = useState(false);
+  const [purchaseMessage, setPurchaseMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
 
   // Gérer les changements dans le formulaire
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -123,6 +125,62 @@ function Liste() {
       console.error("Erreur lors de la création de l'offre:", err);
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  // Fonction pour acheter une offre
+  const handlePurchase = async (offerId: number) => {
+    setPurchaseMessage(null);
+    setIsPurchasing(true);
+
+    try {
+      // Récupérer le token JWT du localStorage
+      const token = localStorage.getItem("token");
+      if (!token) {
+        setPurchaseMessage({
+          type: 'error',
+          text: "Vous devez être connecté pour acheter une offre"
+        });
+        setIsPurchasing(false);
+        return;
+      }
+
+      // Configurer les headers avec le token JWT
+      const config = {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      };
+
+      // Envoyer la requête d'achat
+      const response = await axios.post(`http://localhost:3000/api/offers/${offerId}/buy`, {}, config);
+      
+      // Mettre à jour l'offre dans la liste
+      setOffers(offers.map(offer => 
+        offer.id === offerId 
+          ? { ...offer, status: 'vendu', buyer_id: response.data.offer.buyer_id } 
+          : offer
+      ));
+      
+      setPurchaseMessage({
+        type: 'success',
+        text: "Offre achetée avec succès !"
+      });
+    } catch (err) {
+      if (axios.isAxiosError(err) && err.response) {
+        setPurchaseMessage({
+          type: 'error',
+          text: err.response.data.error || "Erreur lors de l'achat de l'offre"
+        });
+      } else {
+        setPurchaseMessage({
+          type: 'error',
+          text: "Erreur de connexion au serveur"
+        });
+      }
+      console.error("Erreur lors de l'achat de l'offre:", err);
+    } finally {
+      setIsPurchasing(false);
     }
   };
 
@@ -269,6 +327,19 @@ function Liste() {
             </AlertDescription>
           </Alert>
         )}
+        
+        {purchaseMessage && (
+          <Alert variant={purchaseMessage.type === 'success' ? 'default' : 'destructive'}>
+            {purchaseMessage.type === 'success' ? 
+              <CheckCircle className="h-4 w-4" /> : 
+              <AlertCircleIcon className="h-4 w-4" />
+            }
+            <AlertTitle>{purchaseMessage.type === 'success' ? 'Succès' : 'Erreur'}</AlertTitle>
+            <AlertDescription>
+              {purchaseMessage.text}
+            </AlertDescription>
+          </Alert>
+        )}
 
         {!error && offers.length === 0 ? (
           <Card className="w-full">
@@ -289,12 +360,37 @@ function Liste() {
                   </CardDescription>
                 </CardContent>
                 <CardFooter className="flex justify-between items-center bg-muted/50 pt-2">
-                  <Badge variant="secondary" className="font-medium">
-                    {offer.price}€
-                  </Badge>
-                  <Button variant="outline" size="sm">
-                    Voir détails
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="secondary" className="font-medium">
+                      {offer.price}€
+                    </Badge>
+                    {offer.status === 'vendu' && (
+                      <Badge variant="destructive">Vendu</Badge>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    {offer.status !== 'vendu' && (
+                      <Button 
+                        variant="default" 
+                        size="sm" 
+                        onClick={() => handlePurchase(offer.id)}
+                        disabled={isPurchasing || offer.created_by === parseInt(localStorage.getItem('userId') || '0')}
+                      >
+                        {isPurchasing ? (
+                          <span className="flex items-center gap-1">
+                            <span className="animate-spin">⏳</span> Achat...
+                          </span>
+                        ) : (
+                          <span className="flex items-center gap-1">
+                            <ShoppingCart className="h-4 w-4" /> Acheter
+                          </span>
+                        )}
+                      </Button>
+                    )}
+                    <Button variant="outline" size="sm">
+                      Voir détails
+                    </Button>
+                  </div>
                 </CardFooter>
               </Card>
             ))}

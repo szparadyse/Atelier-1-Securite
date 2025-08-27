@@ -67,7 +67,7 @@ initDatabase()
   .then(() => {
     // Lancer le serveur
     app.listen(config.PORT, () => {
-      logger.critical(`🚀 Application lancée ! Backend démarré sur http://localhost:${config.PORT}`);
+      logger.info(`🚀 Application lancée ! Backend démarré sur http://localhost:${config.PORT}`);
     });
   })
   .catch(error => {

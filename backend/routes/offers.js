@@ -102,4 +102,61 @@ router.get("/:id", (req, res) => {
   });
 });
 
+// Route pour acheter une offre (authentification requise)
+router.post("/:id/buy", auth, (req, res) => {
+  const offerId = req.params.id;
+  const buyerId = req.user.userId;
+  
+  logger.info(`Tentative d'achat de l'offre ${offerId} par l'utilisateur ${req.user.username} (ID: ${buyerId})`);
+  
+  // Vérifier si l'offre existe et est disponible
+  db.get("SELECT * FROM offers WHERE id = ?", [offerId], (err, offer) => {
+    if (err) {
+      logger.error(`Erreur lors de la vérification de l'offre ${offerId}: ${err.message}`);
+      return res.status(500).json({ error: "Erreur serveur" });
+    }
+    
+    if (!offer) {
+      logger.warn(`Offre introuvable: ID=${offerId}`);
+      return res.status(404).json({ error: "Offre introuvable" });
+    }
+    
+    // Vérifier si l'utilisateur n'essaie pas d'acheter sa propre offre
+    if (offer.created_by === buyerId) {
+      logger.warn(`L'utilisateur ${req.user.username} a tenté d'acheter sa propre offre: ID=${offerId}`);
+      return res.status(400).json({ error: "Vous ne pouvez pas acheter votre propre offre" });
+    }
+    
+    // Vérifier si l'offre est déjà vendue
+    if (offer.status === 'vendu') {
+      logger.warn(`L'offre ${offerId} est déjà vendue`);
+      return res.status(400).json({ error: "Cette offre a déjà été vendue" });
+    }
+    
+    // Mettre à jour l'offre comme vendue
+    db.run(
+      "UPDATE offers SET status = 'vendu', buyer_id = ? WHERE id = ?",
+      [buyerId, offerId],
+      function(err) {
+        if (err) {
+          logger.error(`Erreur lors de l'achat de l'offre ${offerId}: ${err.message}`);
+          return res.status(500).json({ error: "Erreur serveur lors de l'achat" });
+        }
+        
+        logger.info(`Offre ${offerId} achetée avec succès par l'utilisateur ${req.user.username} (ID: ${buyerId})`);
+        
+        // Retourner les détails de l'offre achetée
+        res.json({ 
+          message: "Offre achetée avec succès",
+          offer: {
+            ...offer,
+            status: 'vendu',
+            buyer_id: buyerId
+          }
+        });
+      }
+    );
+  });
+});
+
 module.exports = router;
